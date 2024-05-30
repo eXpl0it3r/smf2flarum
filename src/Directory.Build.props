@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+    <PropertyGroup>
+        <Company>Lukas Dürrenberger</Company>
+        <AssemblyVersion>0.1.0</AssemblyVersion>
+        <NeutralLanguage>en-US</NeutralLanguage>
+    </PropertyGroup>
+</Project>
