@@ -23,6 +23,7 @@ Design decisions were made to keep the architecture extensible:
 
 If you want to add your own schema versions, here are the commands used to generate the existing schemas:
 ```
+dotnet tool install --global dotnet-ef
 cd src/Schema
 dotnet ef dbcontext scaffold "<connection string>" MySql.EntityFrameworkCore -o <directory> -f
 ```

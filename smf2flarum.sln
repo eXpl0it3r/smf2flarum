@@ -14,6 +14,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Files", "Solution 
 		src\Directory.Build.props = src\Directory.Build.props
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mapping", "src\Mapping\Mapping.csproj", "{538810DF-8BD1-437C-BB35-D82A9E2E5584}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,6 +30,10 @@ Global
 		{77359842-31F1-49A9-A7F5-9ED0129F9A39}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{77359842-31F1-49A9-A7F5-9ED0129F9A39}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{77359842-31F1-49A9-A7F5-9ED0129F9A39}.Release|Any CPU.Build.0 = Release|Any CPU
+		{538810DF-8BD1-437C-BB35-D82A9E2E5584}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{538810DF-8BD1-437C-BB35-D82A9E2E5584}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{538810DF-8BD1-437C-BB35-D82A9E2E5584}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{538810DF-8BD1-437C-BB35-D82A9E2E5584}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
