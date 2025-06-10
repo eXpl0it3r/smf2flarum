@@ -45,5 +45,5 @@ jobs:
       - name: Upload smf2flarum
         uses: actions/upload-artifact@v4
         with:
-          name: sfml2flarum-${{ matrix.platform.rid }}
+          name: smf2flarum-${{ matrix.platform.rid }}
           path: publish
