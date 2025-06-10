@@ -1,5 +1,7 @@
 using CommandLine;
 
+namespace smf2flarum;
+
 public class Options
 {
     [Option('s', "smf", Required = true, HelpText = "Connection string for the SMF database")]
