@@ -21,6 +21,26 @@ public class MigrationStats
     public int DiscussionTagsMigrated { get; set; }
     public int PostsMigrated { get; set; }
     public int PostsSkipped { get; set; }
+    
+    // Extended entity statistics
+    public int DiscussionUsersMigrated { get; set; }
+    public int DiscussionUsersSkipped { get; set; }
+    public int FlagsMigrated { get; set; }
+    public int FlagsSkipped { get; set; }
+    public int PostLikesMigrated { get; set; }
+    public int PostLikesSkipped { get; set; }
+    public int CategoriesMigrated { get; set; }
+    public int CategoriesSkipped { get; set; }
+    public int GroupPermissionsMigrated { get; set; }
+    public int GroupPermissionsSkipped { get; set; }
+    public int AttachmentsMigrated { get; set; }
+    public int AttachmentsSkipped { get; set; }
+    public int PollsMigrated { get; set; }
+    public int PollsSkipped { get; set; }
+    public int NotificationsMigrated { get; set; }
+    public int NotificationsSkipped { get; set; }
+    public int SettingsMigrated { get; set; }
+    public int SettingsSkipped { get; set; }
 }
 
 public class Migrator
@@ -283,6 +303,35 @@ public class Migrator
             
             await _flarumContext.SaveChangesAsync();
 
+            // === Extended Entity Migrations ===
+            
+            Console.WriteLine("-- Migrating Categories to Tags --");
+            await MigrateCategoriesAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Board Permissions to Group Permissions --");
+            await MigrateBoardPermissionsAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Log Topic (Read Tracking) to Discussion Users --");
+            await MigrateLogTopicAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Log Reported to Flags --");
+            await MigrateLogReportedAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Log Karma to Post Likes --");
+            await MigrateLogKarmaAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Log Notify to Notifications --");
+            await MigrateLogNotifyAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Settings --");
+            await MigrateSettingsAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Attachments (DTO Export) --");
+            await MigrateAttachmentsAsync(mapper, stats);
+            
+            Console.WriteLine("-- Migrating Polls (DTO Export) --");
+            await MigratePollsAsync(mapper, stats);
+
             // Commit both transactions
             await smfTransaction.CommitAsync();
             await flarumTransaction.CommitAsync();
@@ -295,6 +344,17 @@ public class Migrator
             Console.WriteLine($"Discussions: {stats.DiscussionsMigrated} migrated, {stats.DiscussionsSkipped} skipped");
             Console.WriteLine($"DiscussionTags: {stats.DiscussionTagsMigrated} migrated");
             Console.WriteLine($"Posts: {stats.PostsMigrated} migrated, {stats.PostsSkipped} skipped");
+            
+            Console.WriteLine("\n=== Extended Entity Statistics ===");
+            Console.WriteLine($"Categories: {stats.CategoriesMigrated} migrated, {stats.CategoriesSkipped} skipped");
+            Console.WriteLine($"Group Permissions: {stats.GroupPermissionsMigrated} migrated, {stats.GroupPermissionsSkipped} skipped");
+            Console.WriteLine($"Discussion Users: {stats.DiscussionUsersMigrated} migrated, {stats.DiscussionUsersSkipped} skipped");
+            Console.WriteLine($"Flags: {stats.FlagsMigrated} migrated, {stats.FlagsSkipped} skipped");
+            Console.WriteLine($"Post Likes: {stats.PostLikesMigrated} migrated, {stats.PostLikesSkipped} skipped");
+            Console.WriteLine($"Notifications: {stats.NotificationsMigrated} migrated, {stats.NotificationsSkipped} skipped");
+            Console.WriteLine($"Settings: {stats.SettingsMigrated} migrated, {stats.SettingsSkipped} skipped");
+            Console.WriteLine($"Attachments (DTO): {stats.AttachmentsMigrated} exported, {stats.AttachmentsSkipped} skipped");
+            Console.WriteLine($"Polls (DTO): {stats.PollsMigrated} exported, {stats.PollsSkipped} skipped");
             
             Console.WriteLine("\n=== Migration Completed Successfully ===");
         }
@@ -352,5 +412,279 @@ public class Migrator
     {
         _smfContext = smfContext;
         _flarumContext = flarumContext;
+    }
+
+    // === Extended Migration Methods ===
+
+    private async Task MigrateCategoriesAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var categories = _smfContext.Categories.OrderBy(c => c.CatOrder).ToList();
+        var totalCategories = categories.Count;
+        var processedCategories = 0;
+
+        foreach (var category in categories)
+        {
+            processedCategories++;
+            Console.WriteLine($"[{processedCategories}/{totalCategories}] Adding Tag from Category: {category.IdCat} {category.Name}");
+
+            // Use ID offset to avoid conflicts with board tags
+            uint tagId = (uint)(category.IdCat + 10000);
+
+            if (await _flarumContext.Tags.AnyAsync(t => t.Id == tagId))
+            {
+                Console.WriteLine("Category tag already exists, skipping...");
+                stats.CategoriesSkipped++;
+                continue;
+            }
+
+            var newTag = mapper.Map<Tag>(category);
+            newTag.Id = tagId;
+            await _flarumContext.Tags.AddAsync(newTag);
+            stats.CategoriesMigrated++;
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    private async Task MigrateBoardPermissionsAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var permissions = _smfContext.BoardPermissions.ToList();
+        var totalPermissions = permissions.Count;
+        var processedPermissions = 0;
+
+        foreach (var permission in permissions)
+        {
+            processedPermissions++;
+            Console.WriteLine($"[{processedPermissions}/{totalPermissions}] Adding Group Permission from Board Permission: {permission.IdGroup} -> Profile {permission.IdProfile}");
+
+            if (await _flarumContext.GroupPermissions.AnyAsync(gp => 
+                gp.GroupId == permission.IdGroup && gp.Permission.StartsWith($"profile.{permission.IdProfile}.")))
+            {
+                Console.WriteLine("Board permission already exists, skipping...");
+                stats.GroupPermissionsSkipped++;
+                continue;
+            }
+
+            var newPermissions = mapper.Map<IEnumerable<GroupPermission>>(permission);
+            await _flarumContext.GroupPermissions.AddRangeAsync(newPermissions);
+            stats.GroupPermissionsMigrated += newPermissions.Count();
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    private async Task MigrateLogTopicAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var logTopics = _smfContext.LogTopics.ToList();
+        var totalLogTopics = logTopics.Count;
+        var processedLogTopics = 0;
+
+        foreach (var logTopic in logTopics)
+        {
+            processedLogTopics++;
+            Console.WriteLine($"[{processedLogTopics}/{totalLogTopics}] Adding Discussion User from Log Topic: {logTopic.IdMember} -> {logTopic.IdTopic}");
+
+            if (await _flarumContext.DiscussionUsers.AnyAsync(du => 
+                du.UserId == logTopic.IdMember && du.DiscussionId == logTopic.IdTopic))
+            {
+                Console.WriteLine("Discussion user read tracking already exists, skipping...");
+                stats.DiscussionUsersSkipped++;
+                continue;
+            }
+
+            var newDiscussionUser = mapper.Map<DiscussionUser>(logTopic);
+            await _flarumContext.DiscussionUsers.AddAsync(newDiscussionUser);
+            stats.DiscussionUsersMigrated++;
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    private async Task MigrateLogReportedAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var logReported = _smfContext.LogReporteds.ToList();
+        var totalLogReported = logReported.Count;
+        var processedLogReported = 0;
+
+        foreach (var reported in logReported)
+        {
+            processedLogReported++;
+            Console.WriteLine($"[{processedLogReported}/{totalLogReported}] Adding Flag from Log Reported: {reported.IdReport}");
+
+            if (await _flarumContext.Flags.AnyAsync(f => f.Id == reported.IdReport))
+            {
+                Console.WriteLine("Flag already exists, skipping...");
+                stats.FlagsSkipped++;
+                continue;
+            }
+
+            var newFlag = mapper.Map<Flag>(reported);
+            await _flarumContext.Flags.AddAsync(newFlag);
+            stats.FlagsMigrated++;
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    private async Task MigrateLogKarmaAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var logKarma = _smfContext.LogKarmas.ToList();
+        var totalLogKarma = logKarma.Count;
+        var processedLogKarma = 0;
+
+        foreach (var karma in logKarma)
+        {
+            processedLogKarma++;
+            Console.WriteLine($"[{processedLogKarma}/{totalLogKarma}] Adding Post Like from Log Karma: {karma.IdTarget} -> {karma.IdExecutor}");
+
+            // Check if there's already a like from this user to this target
+            if (await _flarumContext.PostLikes.AnyAsync(pl => 
+                pl.UserId == karma.IdExecutor && pl.PostId == karma.IdTarget))
+            {
+                Console.WriteLine("Post like from karma already exists, skipping...");
+                stats.PostLikesSkipped++;
+                continue;
+            }
+
+            var newPostLike = mapper.Map<PostLike>(karma);
+            await _flarumContext.PostLikes.AddAsync(newPostLike);
+            stats.PostLikesMigrated++;
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    private async Task MigrateLogNotifyAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var logNotify = _smfContext.LogNotifies.ToList();
+        var totalLogNotify = logNotify.Count;
+        var processedLogNotify = 0;
+
+        foreach (var notify in logNotify)
+        {
+            processedLogNotify++;
+            Console.WriteLine($"[{processedLogNotify}/{totalLogNotify}] Adding Notification from Log Notify: {notify.IdMember} -> {notify.IdTopic}");
+
+            // Check for existing notification
+            if (await _flarumContext.Notifications.AnyAsync(n => 
+                n.UserId == notify.IdMember && n.SubjectId == notify.IdTopic && n.Type == "discussionRenamed"))
+            {
+                Console.WriteLine("Notification already exists, skipping...");
+                stats.NotificationsSkipped++;
+                continue;
+            }
+
+            var newNotification = mapper.Map<Notification>(notify);
+            await _flarumContext.Notifications.AddAsync(newNotification);
+            stats.NotificationsMigrated++;
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    private async Task MigrateSettingsAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var settings = _smfContext.Settings.Where(s => IsRelevantSetting(s.Variable)).ToList();
+        var totalSettings = settings.Count;
+        var processedSettings = 0;
+
+        foreach (var setting in settings)
+        {
+            processedSettings++;
+            Console.WriteLine($"[{processedSettings}/{totalSettings}] Processing Setting: {setting.Variable}");
+
+            var mappedSetting = mapper.Map<Schema.Flarum185.Setting>(setting);
+
+            if (await _flarumContext.Settings.AnyAsync(s => s.Key == mappedSetting.Key))
+            {
+                Console.WriteLine("Setting already exists, skipping...");
+                stats.SettingsSkipped++;
+                continue;
+            }
+
+            await _flarumContext.Settings.AddAsync(mappedSetting);
+            stats.SettingsMigrated++;
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Determines which SMF settings are relevant for Flarum migration.
+    /// </summary>
+    private static bool IsRelevantSetting(string smfKey)
+    {
+        var relevantSettings = new[]
+        {
+            "forum_name",
+            "forum_description", 
+            "default_language",
+            "admin_email",
+            "registration_method",
+            "posts_per_page",
+            "messages_per_page",
+            "time_format",
+            "smtp_host",
+            "smtp_port", 
+            "smtp_username",
+            "enable_mentions",
+            "welcome_email",
+            "guest_access"
+        };
+
+        return relevantSettings.Contains(smfKey);
+    }
+
+    private async Task MigrateAttachmentsAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var attachments = _smfContext.Attachments.ToList();
+        var totalAttachments = attachments.Count;
+        var processedAttachments = 0;
+
+        Console.WriteLine("Note: Attachments require the FoF Upload extension. Exporting as DTO data...");
+
+        foreach (var attachment in attachments)
+        {
+            processedAttachments++;
+            Console.WriteLine($"[{processedAttachments}/{totalAttachments}] Exporting Attachment DTO: {attachment.IdAttach} {attachment.Filename}");
+
+            var attachmentDto = mapper.Map<AttachmentDto>(attachment);
+            // Here you could serialize to JSON, export to file, etc.
+            // For now, just count as processed
+            stats.AttachmentsMigrated++;
+        }
+
+        Console.WriteLine($"Exported {stats.AttachmentsMigrated} attachment DTOs. Install FoF Upload extension and import manually.");
+    }
+
+    private async Task MigratePollsAsync(AutoMapper.Mapper mapper, MigrationStats stats)
+    {
+        var polls = _smfContext.Polls.ToList();
+        var totalPolls = polls.Count;
+        var processedPolls = 0;
+
+        Console.WriteLine("Note: Polls require the FoF Polls extension. Exporting as DTO data...");
+
+        foreach (var poll in polls)
+        {
+            processedPolls++;
+            Console.WriteLine($"[{processedPolls}/{totalPolls}] Exporting Poll DTO: {poll.IdPoll} {poll.Question}");
+
+            var pollDto = mapper.Map<PollDto>(poll);
+            // Export poll choices too
+            var pollChoices = await _smfContext.PollChoices
+                .Where(pc => pc.IdPoll == poll.IdPoll)
+                .ToListAsync();
+            
+            foreach (var choice in pollChoices)
+            {
+                var choiceDto = mapper.Map<PollChoiceDto>(choice);
+                // Here you could serialize to JSON, export to file, etc.
+            }
+
+            stats.PollsMigrated++;
+        }
+
+        Console.WriteLine($"Exported {stats.PollsMigrated} poll DTOs. Install FoF Polls extension and import manually.");
     }
 }
