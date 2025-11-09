@@ -10,6 +10,10 @@ public static class MapperFactory
         {
             cfg.AddProfile<GroupProfile>();
             cfg.AddProfile<UserProfile>();
+            cfg.AddProfile<GroupUserProfile>();
+            cfg.AddProfile<BoardProfile>();
+            cfg.AddProfile<TopicProfile>();
+            cfg.AddProfile<MessageProfile>();
         });
 
         return new Mapper(configuration);
