@@ -26,6 +26,12 @@ public static class MapperFactory
             cfg.AddProfile<PollProfile>();
             cfg.AddProfile<LogNotifyProfile>();
             cfg.AddProfile<SettingProfile>();
+            
+            // High-priority missing entity profiles
+            cfg.AddProfile<PostMentionsProfile>();
+            cfg.AddProfile<PersonalMessageProfile>();
+            cfg.AddProfile<ModeratorProfile>();
+            cfg.AddProfile<TagUserProfile>();
         });
 
         return new Mapper(configuration);
