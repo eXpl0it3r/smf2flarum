@@ -9,6 +9,7 @@ public class MigrationCommands
     /// </summary>
     /// <param name="smf">Connection string for the SMF database</param>
     /// <param name="flarum">Connection string for the Flarum database</param>
+    [Command("")]
     public async Task MigrateAsync(string smf, string flarum)
     {
         var options = new Options
