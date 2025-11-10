@@ -166,6 +166,13 @@ public class Migrator
                     continue;
                 }
 
+                if (await _flarumContext.Users.AnyAsync(u => u.Username == member.MemberName))
+                {
+                    Console.WriteLine($"Username '{member.MemberName}' already exists, skipping...");
+                    stats.UsersSkipped++;
+                    continue;
+                }
+
                 var newUser = mapper.Map<User>(member);
                 await _flarumContext.Users.AddAsync(newUser);
                 await _flarumContext.SaveChangesAsync();
