@@ -15,11 +15,11 @@ public class TopicProfile : Profile
             .ForMember(dest => dest.ParticipantCount, opt => opt.Ignore()) // Will be calculated
             .ForMember(dest => dest.PostNumberIndex, opt => opt.MapFrom(src => src.NumReplies + 1))
             .ForMember(dest => dest.CreatedAt, opt => opt.Ignore()) // Will be set from first message
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.IdMemberStarted))
-            .ForMember(dest => dest.FirstPostId, opt => opt.MapFrom(src => src.IdFirstMsg))
+            .ForMember(dest => dest.UserId, opt => opt.Ignore()) // Will be set after posts are created
+            .ForMember(dest => dest.FirstPostId, opt => opt.Ignore()) // Will be set after posts are created
             .ForMember(dest => dest.LastPostedAt, opt => opt.Ignore()) // Will be set from last message
-            .ForMember(dest => dest.LastPostedUserId, opt => opt.MapFrom(src => src.IdMemberUpdated))
-            .ForMember(dest => dest.LastPostId, opt => opt.MapFrom(src => src.IdLastMsg))
+            .ForMember(dest => dest.LastPostedUserId, opt => opt.Ignore()) // Will be set after posts are created
+            .ForMember(dest => dest.LastPostId, opt => opt.Ignore()) // Will be set after posts are created
             .ForMember(dest => dest.LastPostNumber, opt => opt.MapFrom(src => src.NumReplies + 1))
             .ForMember(dest => dest.HiddenAt, opt => opt.Ignore())
             .ForMember(dest => dest.HiddenUserId, opt => opt.Ignore())

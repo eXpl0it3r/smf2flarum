@@ -78,6 +78,9 @@ public class Migrator
             var mapper = MapperFactory.Create();
             var stats = new MigrationStats();
 
+            Console.WriteLine("-- Ensuring Default Flarum Groups Exist --");
+            await EnsureDefaultGroupsExistAsync();
+
             Console.WriteLine("-- Migrating User & GroupUser --");
 
             /* === Group Mappings ===
@@ -313,6 +316,9 @@ public class Migrator
             
             await _flarumContext.SaveChangesAsync();
 
+            Console.WriteLine("-- Updating Discussion Post References --");
+            await UpdateDiscussionPostReferencesAsync(stats);
+
             // === Extended Entity Migrations ===
             
             Console.WriteLine("-- Migrating Categories to Tags --");
@@ -481,23 +487,45 @@ public class Migrator
         var permissions = _smfContext.BoardPermissions.ToList();
         var totalPermissions = permissions.Count;
         var processedPermissions = 0;
+        var addedPermissions = new HashSet<(uint GroupId, string Permission)>();
 
         foreach (var permission in permissions)
         {
             processedPermissions++;
             Console.WriteLine($"[{processedPermissions}/{totalPermissions}] Adding Group Permission from Board Permission: {permission.IdGroup} -> Profile {permission.IdProfile}");
 
-            if (await _flarumContext.GroupPermissions.AnyAsync(gp => 
-                gp.GroupId == permission.IdGroup && gp.Permission.StartsWith($"profile.{permission.IdProfile}.")))
+            var newPermissions = mapper.Map<IEnumerable<GroupPermission>>(permission);
+            var permissionsToAdd = new List<GroupPermission>();
+
+            foreach (var newPermission in newPermissions)
             {
-                Console.WriteLine("Board permission already exists, skipping...");
-                stats.GroupPermissionsSkipped++;
-                continue;
+                var key = (newPermission.GroupId, newPermission.Permission);
+                
+                // Skip if we've already added this permission in this batch
+                if (addedPermissions.Contains(key))
+                {
+                    Console.WriteLine($"Permission already added in batch: Group {key.GroupId}, Permission {key.Permission}");
+                    continue;
+                }
+
+                // Skip if permission already exists in database
+                if (await _flarumContext.GroupPermissions.AnyAsync(gp => 
+                    gp.GroupId == newPermission.GroupId && gp.Permission == newPermission.Permission))
+                {
+                    Console.WriteLine($"Permission already exists in database: Group {key.GroupId}, Permission {key.Permission}");
+                    stats.GroupPermissionsSkipped++;
+                    continue;
+                }
+
+                addedPermissions.Add(key);
+                permissionsToAdd.Add(newPermission);
             }
 
-            var newPermissions = mapper.Map<IEnumerable<GroupPermission>>(permission);
-            await _flarumContext.GroupPermissions.AddRangeAsync(newPermissions);
-            stats.GroupPermissionsMigrated += newPermissions.Count();
+            if (permissionsToAdd.Any())
+            {
+                await _flarumContext.GroupPermissions.AddRangeAsync(permissionsToAdd);
+                stats.GroupPermissionsMigrated += permissionsToAdd.Count;
+            }
         }
 
         await _flarumContext.SaveChangesAsync();
@@ -614,7 +642,8 @@ public class Migrator
 
     private async Task MigrateSettingsAsync(AutoMapper.Mapper mapper, MigrationStats stats)
     {
-        var settings = _smfContext.Settings.Where(s => IsRelevantSetting(s.Variable)).ToList();
+        var allSettings = _smfContext.Settings.ToList();
+        var settings = allSettings.Where(s => IsRelevantSetting(s.Variable)).ToList();
         var totalSettings = settings.Count;
         var processedSettings = 0;
 
@@ -888,5 +917,83 @@ public class Migrator
         }
 
         await _flarumContext.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Ensures that the default Flarum groups exist in the database.
+    /// Creates missing default groups: 1=Admin, 3=Member, 4=Moderator
+    /// </summary>
+    private async Task EnsureDefaultGroupsExistAsync()
+    {
+        var defaultGroups = new[]
+        {
+            new { Id = 1U, NameSingular = "Admin", NamePlural = "Admins", Color = (string?)"#B72A2A", Icon = (string?)"fas fa-wrench" },
+            new { Id = 3U, NameSingular = "Member", NamePlural = "Members", Color = (string?)null, Icon = (string?)null },
+            new { Id = 4U, NameSingular = "Mod", NamePlural = "Mods", Color = (string?)"#80349E", Icon = (string?)"fas fa-shield-alt" }
+        };
+
+        foreach (var defaultGroup in defaultGroups)
+        {
+            if (!await _flarumContext.Groups.AnyAsync(g => g.Id == defaultGroup.Id))
+            {
+                Console.WriteLine($"Creating default Flarum group: {defaultGroup.Id} {defaultGroup.NameSingular}");
+                
+                var group = new Group
+                {
+                    Id = defaultGroup.Id,
+                    NameSingular = defaultGroup.NameSingular,
+                    NamePlural = defaultGroup.NamePlural,
+                    Color = defaultGroup.Color,
+                    Icon = defaultGroup.Icon,
+                    IsHidden = false
+                };
+                
+                await _flarumContext.Groups.AddAsync(group);
+            }
+        }
+
+        await _flarumContext.SaveChangesAsync();
+    }
+
+    private async Task UpdateDiscussionPostReferencesAsync(MigrationStats stats)
+    {
+        var discussions = await _flarumContext.Discussions.ToListAsync();
+        var totalDiscussions = discussions.Count;
+        var processedDiscussions = 0;
+
+        foreach (var discussion in discussions)
+        {
+            processedDiscussions++;
+            Console.WriteLine($"[{processedDiscussions}/{totalDiscussions}] Updating Discussion post references: {discussion.Id}");
+
+            // Find the first post (lowest post number) for this discussion
+            var firstPost = await _flarumContext.Posts
+                .Where(p => p.DiscussionId == discussion.Id)
+                .OrderBy(p => p.Number)
+                .FirstOrDefaultAsync();
+
+            // Find the last post (highest post number) for this discussion
+            var lastPost = await _flarumContext.Posts
+                .Where(p => p.DiscussionId == discussion.Id)
+                .OrderByDescending(p => p.Number)
+                .FirstOrDefaultAsync();
+
+            if (firstPost != null)
+            {
+                discussion.FirstPostId = firstPost.Id;
+                discussion.UserId = firstPost.UserId; // Set discussion creator from first post
+            }
+
+            if (lastPost != null)
+            {
+                discussion.LastPostId = lastPost.Id;
+                discussion.LastPostNumber = lastPost.Number;
+                discussion.LastPostedAt = lastPost.CreatedAt;
+                discussion.LastPostedUserId = lastPost.UserId;
+            }
+        }
+
+        await _flarumContext.SaveChangesAsync();
+        Console.WriteLine($"Updated post references for {totalDiscussions} discussions.");
     }
 }
