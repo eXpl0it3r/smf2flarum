@@ -65,6 +65,7 @@ public class BoardPermissionProfile : Profile
         // Use the same group mapping as in Migrator.cs
         var groupMapping = new Dictionary<int, uint>
         {
+            { 0, 3 },  // No group/unassigned => Member
             { 1, 1 },  // Administrator => Admin
             { 2, 4 },  // Global Moderator => Mod  
             { 3, 4 },  // Moderator => Mod

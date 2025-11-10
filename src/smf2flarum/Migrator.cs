@@ -97,6 +97,9 @@ public class Migrator
             var groupMapping = new Dictionary<int, uint>
             {
                 {
+                    0, 3  // No group/unassigned => Member
+                },
+                {
                     1, 1
                 },
                 {
