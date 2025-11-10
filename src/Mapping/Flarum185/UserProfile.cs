@@ -14,7 +14,7 @@ public class UserProfile : Profile
             .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.EmailAddress))
             .ForMember(dest => dest.IsEmailConfirmed, opt => opt.MapFrom(src => src.IsActivated == 1))
             .ForMember(dest => dest.Password, opt => opt.MapFrom(src => src.Passwd))
-            .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src => src.Avatar))
+            .ForMember(dest => dest.AvatarUrl, opt => opt.MapFrom(src => TruncateAvatarUrl(src.Avatar)))
             .ForMember(dest => dest.Preferences, opt => opt.Ignore())
             .ForMember(dest => dest.JoinedAt, opt => opt.MapFrom(src => Mapping.Converter.UnixTimeStampToDateTime(src.DateRegistered)))
             .ForMember(dest => dest.LastSeenAt, opt => opt.MapFrom(src => Mapping.Converter.UnixTimeStampToDateTime(src.LastLogin)))
@@ -47,5 +47,25 @@ public class UserProfile : Profile
             .ForMember(dest => dest.TagUsers, opt => opt.Ignore())
             .ForMember(dest => dest.Tags, opt => opt.Ignore())
             .ForMember(dest => dest.Posts, opt => opt.Ignore());
+    }
+
+    /// <summary>
+    /// Truncates avatar URL to fit Flarum's avatar_url column constraints.
+    /// Uses a conservative 100 character limit to ensure compatibility.
+    /// </summary>
+    private static string? TruncateAvatarUrl(string? avatarUrl)
+    {
+        if (string.IsNullOrEmpty(avatarUrl))
+            return null;
+
+        // Use a conservative length limit to ensure it fits
+        const int maxLength = 100;
+        
+        if (avatarUrl.Length <= maxLength)
+            return avatarUrl;
+
+        // If it's a very long URL, just return null to skip avatar
+        // This is safer than trying to truncate potentially malformed data
+        return null;
     }
 }
