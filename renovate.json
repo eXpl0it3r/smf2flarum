@@ -1,0 +1,20 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "dependencyDashboard": false,
+  "minimumReleaseAge": "7 days",
+  "packageRules": [
+    {
+      "description": "AutoMapper 15.0.0 and newer requires a commercial license",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "AutoMapper"
+      ],
+      "allowedVersions": "< 15.0.0"
+    }
+  ]
+}
