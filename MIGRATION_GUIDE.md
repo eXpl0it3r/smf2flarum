@@ -107,9 +107,9 @@ Custom groups are preserved with their original IDs.
 
 ## Requirements
 
-- .NET 8.0+
+- .NET 10.0+
 - MySQL/MariaDB for both source and target databases
-- Entity Framework Core 9.0+
+- Entity Framework Core 10.0+
 - AutoMapper 14.0+
 
 ## Limitations
